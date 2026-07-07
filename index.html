@@ -396,6 +396,8 @@ function generateNotesPdf(region) {
     y += 16;
     doc.setFont(undefined, 'normal');
     doc.setFontSize(11);
+    doc.text(`Phone: ${stop.phone || '(no phone)'}`, marginX, y);
+    y += 15;
     const noteText = stop.notes ? stop.notes : '(no notes)';
     const lines = doc.splitTextToSize(noteText, 500);
     doc.text(lines, marginX, y);
