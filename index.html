@@ -78,9 +78,11 @@
 
   .actions-row {
     display: flex;
+    flex-direction: column;
     gap: 8px;
     margin: 14px 0;
   }
+  .actions-row .row { display: flex; gap: 8px; }
   .btn {
     flex: 1;
     padding: 12px 8px;
@@ -91,9 +93,10 @@
     cursor: pointer;
     color: white;
   }
-  .btn.address { background: var(--south); }
-  .btn.notes { background: #555; }
-  .region-panel[data-region="north"] .btn.address { background: var(--north); }
+  .btn.primary { background: var(--south); }
+  .btn.secondary { background: #555; }
+  .region-panel[data-region="north"] .btn.primary { background: var(--north); }
+  .btn-hint { font-size: 11px; color: var(--muted); text-align: center; margin-top: -4px; }
 
   .stop-card {
     background: var(--card);
@@ -124,6 +127,8 @@
     cursor: pointer;
     color: var(--muted);
   }
+  .field-row { display: flex; gap: 8px; }
+  .field-row > div { flex: 1; }
   label.field-label {
     display: block;
     font-size: 10px;
@@ -169,7 +174,7 @@
 
 <header>
   <h1>SCP Spoke Manifest Builder</h1>
-  <p>Shopify export → SOUTH/NORTH split → Spoke-ready PDFs</p>
+  <p>Shopify export → SOUTH/NORTH split → Spoke Dispatch CSV (name, phone, notes auto-filled)</p>
 </header>
 
 <div class="upload-zone">
@@ -186,16 +191,28 @@
 
 <div class="region-panel active" data-region="south" id="panel-south">
   <div class="actions-row">
-    <button class="btn address" onclick="generateAddressPdf('south')">Spoke Import PDF</button>
-    <button class="btn notes" onclick="generateNotesPdf('south')">Notes Reference PDF</button>
+    <div class="row">
+      <button class="btn primary" onclick="generateDispatchCsv('south')">Export Spoke Dispatch CSV</button>
+    </div>
+    <div class="btn-hint">Upload this directly into Spoke Dispatch — name, phone &amp; notes auto-fill per stop.</div>
+    <div class="row">
+      <button class="btn secondary" onclick="generateAddressPdf('south')">Spoke Import PDF (fallback)</button>
+      <button class="btn secondary" onclick="generateNotesPdf('south')">Notes Reference PDF (fallback)</button>
+    </div>
   </div>
   <div id="cards-south"><div class="empty-state">Upload a CSV to see SOUTH stops.</div></div>
 </div>
 
 <div class="region-panel" data-region="north" id="panel-north">
   <div class="actions-row">
-    <button class="btn address" onclick="generateAddressPdf('north')">Spoke Import PDF</button>
-    <button class="btn notes" onclick="generateNotesPdf('north')">Notes Reference PDF</button>
+    <div class="row">
+      <button class="btn primary" onclick="generateDispatchCsv('north')">Export Spoke Dispatch CSV</button>
+    </div>
+    <div class="btn-hint">Upload this directly into Spoke Dispatch — name, phone &amp; notes auto-fill per stop.</div>
+    <div class="row">
+      <button class="btn secondary" onclick="generateAddressPdf('north')">Spoke Import PDF (fallback)</button>
+      <button class="btn secondary" onclick="generateNotesPdf('north')">Notes Reference PDF (fallback)</button>
+    </div>
   </div>
   <div id="cards-north"><div class="empty-state">Upload a CSV to see NORTH stops.</div></div>
 </div>
@@ -204,7 +221,7 @@
 
 <script>
 let stops = { south: [], north: [] };
-const STORAGE_KEY = 'scp_spoke_stops_v1';
+const STORAGE_KEY = 'scp_spoke_stops_v2';
 
 function saveToStorage() {
   try {
@@ -304,15 +321,17 @@ function processRows(rows) {
       const phone = firstNonEmpty(row, ['Shipping Phone', 'Phone']);
       const notes = firstNonEmpty(row, ['Notes', 'Note']);
 
-      const fullAddress = [addr1, addr2, city, province, zip].filter(Boolean).join(', ');
-
       orders[orderId] = {
         orderId,
         name,
         phone,
         notes,
-        address: fullAddress,
+        addr1,
+        addr2,
+        city,
+        state: province,
         zip,
+        country: 'Australia',
         excluded: false
       };
     }
@@ -353,12 +372,34 @@ function renderCards(region) {
           <button onclick="toggleExclude('${region}', ${i})">${stop.excluded ? 'Include' : 'Exclude'}</button>
         </div>
       </div>
-      <label class="field-label">Name</label>
-      <input class="field" value="${escapeHtml(stop.name)}" onchange="updateField('${region}', ${i}, 'name', this.value)">
-      <label class="field-label">Address</label>
-      <textarea class="field" onchange="updateField('${region}', ${i}, 'address', this.value)">${escapeHtml(stop.address)}</textarea>
-      <label class="field-label">Phone</label>
-      <input class="field" value="${escapeHtml(stop.phone)}" onchange="updateField('${region}', ${i}, 'phone', this.value)">
+      <div class="field-row">
+        <div>
+          <label class="field-label">Name</label>
+          <input class="field" value="${escapeHtml(stop.name)}" onchange="updateField('${region}', ${i}, 'name', this.value)">
+        </div>
+        <div>
+          <label class="field-label">Phone</label>
+          <input class="field" value="${escapeHtml(stop.phone)}" onchange="updateField('${region}', ${i}, 'phone', this.value)">
+        </div>
+      </div>
+      <label class="field-label">Address Line 1</label>
+      <input class="field" value="${escapeHtml(stop.addr1)}" onchange="updateField('${region}', ${i}, 'addr1', this.value)">
+      <label class="field-label">Address Line 2</label>
+      <input class="field" value="${escapeHtml(stop.addr2)}" onchange="updateField('${region}', ${i}, 'addr2', this.value)">
+      <div class="field-row">
+        <div>
+          <label class="field-label">City</label>
+          <input class="field" value="${escapeHtml(stop.city)}" onchange="updateField('${region}', ${i}, 'city', this.value)">
+        </div>
+        <div>
+          <label class="field-label">State</label>
+          <input class="field" value="${escapeHtml(stop.state)}" onchange="updateField('${region}', ${i}, 'state', this.value)">
+        </div>
+        <div>
+          <label class="field-label">Zip</label>
+          <input class="field" value="${escapeHtml(stop.zip)}" onchange="updateField('${region}', ${i}, 'zip', this.value)">
+        </div>
+      </div>
       <label class="field-label">Notes</label>
       <textarea class="field" onchange="updateField('${region}', ${i}, 'notes', this.value)">${escapeHtml(stop.notes)}</textarea>
     </div>
@@ -367,7 +408,7 @@ function renderCards(region) {
 
 function escapeHtml(str) {
   if (!str) return '';
-  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 function updateField(region, index, field, value) {
@@ -394,6 +435,54 @@ function activeStops(region) {
   return stops[region].filter(s => !s.excluded);
 }
 
+function csvEscape(val) {
+  if (val === undefined || val === null) return '';
+  const str = String(val);
+  if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+    return '"' + str.replace(/"/g, '""') + '"';
+  }
+  return str;
+}
+
+function generateDispatchCsv(region) {
+  const list = activeStops(region);
+  if (!list.length) { showStatus('No stops to export'); return; }
+
+  const headers = ['Address Line 1', 'Address Line 2', 'City', 'State', 'Zip', 'Country', 'Recipient Name', 'Recipient Phone Number', 'Notes'];
+  const rows = [headers.join(',')];
+
+  list.forEach(stop => {
+    rows.push([
+      csvEscape(stop.addr1),
+      csvEscape(stop.addr2),
+      csvEscape(stop.city),
+      csvEscape(stop.state),
+      csvEscape(stop.zip),
+      csvEscape(stop.country),
+      csvEscape(stop.name),
+      csvEscape(stop.phone),
+      csvEscape(stop.notes)
+    ].join(','));
+  });
+
+  const csvContent = rows.join('\r\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `SCP_${region.toUpperCase()}_SpokeDispatch.csv`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+
+  showStatus(`Generated Spoke Dispatch CSV — ${list.length} stops`);
+}
+
+function fullAddress(stop) {
+  return [stop.addr1, stop.addr2, stop.city, stop.state, stop.zip].filter(Boolean).join(', ');
+}
+
 function generateAddressPdf(region) {
   const list = activeStops(region);
   if (!list.length) { showStatus('No stops to export'); return; }
@@ -415,7 +504,7 @@ function generateAddressPdf(region) {
     y += 16;
     doc.setFont(undefined, 'normal');
     doc.setFontSize(13);
-    const lines = doc.splitTextToSize(stop.address, 500);
+    const lines = doc.splitTextToSize(fullAddress(stop), 500);
     doc.text(lines, marginX, y);
     y += lines.length * 16 + 4;
     doc.setFontSize(10);
