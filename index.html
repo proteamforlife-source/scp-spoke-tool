@@ -246,10 +246,8 @@ function clearStorage() {
   showStatus('Cleared saved data');
 }
 
-window.addEventListener('DOMContentLoaded', () => {
-  const loaded = loadFromStorage();
-  if (loaded) showStatus('Restored last saved export');
-});
+const restored = loadFromStorage();
+if (restored) showStatus('Restored last saved export');
 
 function switchTab(region) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
