@@ -253,7 +253,7 @@ function processRows(rows) {
       const addr1 = firstNonEmpty(row, ['Shipping Address1', 'Shipping Address']);
       const addr2 = firstNonEmpty(row, ['Shipping Address2']);
       const city = firstNonEmpty(row, ['Shipping City']);
-      const zip = firstNonEmpty(row, ['Shipping Zip', 'Shipping Postal Code']);
+      const zip = firstNonEmpty(row, ['Shipping Zip', 'Shipping Postal Code']).replace(/^'+/, '').trim();
       const province = firstNonEmpty(row, ['Shipping Province', 'Shipping Province Name']);
       const name = firstNonEmpty(row, ['Shipping Name', 'Billing Name']);
       const phone = firstNonEmpty(row, ['Shipping Phone', 'Phone']);
