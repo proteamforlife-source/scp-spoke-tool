@@ -192,13 +192,9 @@
 <div class="region-panel active" data-region="south" id="panel-south">
   <div class="actions-row">
     <div class="row">
-      <button class="btn primary" onclick="generateDispatchCsv('south')">Export Spoke Dispatch CSV</button>
+      <button class="btn primary" onclick="generateAddressPdf('south')">Generate Spoke PDF</button>
     </div>
-    <div class="btn-hint">Upload this directly into Spoke Dispatch — name, phone &amp; notes auto-fill per stop.</div>
-    <div class="row">
-      <button class="btn secondary" onclick="generateAddressPdf('south')">Spoke Import PDF (fallback)</button>
-      <button class="btn secondary" onclick="generateNotesPdf('south')">Notes Reference PDF (fallback)</button>
-    </div>
+    <div class="btn-hint">Address, name, phone &amp; notes together — one PDF, one import.</div>
   </div>
   <div id="cards-south"><div class="empty-state">Upload a CSV to see SOUTH stops.</div></div>
 </div>
@@ -206,13 +202,9 @@
 <div class="region-panel" data-region="north" id="panel-north">
   <div class="actions-row">
     <div class="row">
-      <button class="btn primary" onclick="generateDispatchCsv('north')">Export Spoke Dispatch CSV</button>
+      <button class="btn primary" onclick="generateAddressPdf('north')">Generate Spoke PDF</button>
     </div>
-    <div class="btn-hint">Upload this directly into Spoke Dispatch — name, phone &amp; notes auto-fill per stop.</div>
-    <div class="row">
-      <button class="btn secondary" onclick="generateAddressPdf('north')">Spoke Import PDF (fallback)</button>
-      <button class="btn secondary" onclick="generateNotesPdf('north')">Notes Reference PDF (fallback)</button>
-    </div>
+    <div class="btn-hint">Address, name, phone &amp; notes together — one PDF, one import.</div>
   </div>
   <div id="cards-north"><div class="empty-state">Upload a CSV to see NORTH stops.</div></div>
 </div>
@@ -497,7 +489,7 @@ function generateAddressPdf(region) {
   y += 30;
 
   list.forEach((stop, i) => {
-    if (y > 740) { doc.addPage(); y = 50; }
+    if (y > 720) { doc.addPage(); y = 50; }
     doc.setFontSize(11);
     doc.setFont(undefined, 'bold');
     doc.text(`Stop ${i + 1}`, marginX, y);
@@ -510,7 +502,11 @@ function generateAddressPdf(region) {
     doc.setFontSize(10);
     doc.setFont(undefined, 'italic');
     doc.text(`${stop.name || '(no name)'}  ·  ${stop.phone || '(no phone)'}`, marginX, y);
-    y += 24;
+    y += 14;
+    doc.setFont(undefined, 'normal');
+    const noteLines = doc.splitTextToSize(`Notes: ${stop.notes || '(none)'}`, 500);
+    doc.text(noteLines, marginX, y);
+    y += noteLines.length * 13 + 20;
   });
 
   doc.save(`SCP_${region.toUpperCase()}_SpokeImport.pdf`);
