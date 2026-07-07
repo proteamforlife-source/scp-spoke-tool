@@ -176,6 +176,7 @@
   <label class="upload-label" for="csvInput">Upload Shopify CSV export</label>
   <input type="file" id="csvInput" accept=".csv">
   <div class="file-name" id="fileName">No file loaded yet</div>
+  <button onclick="clearStorage()" style="margin-top:10px;background:none;border:1px solid var(--border);border-radius:6px;padding:5px 12px;font-size:12px;color:var(--muted);cursor:pointer;">Clear saved data</button>
 </div>
 
 <div class="tabs">
@@ -203,6 +204,52 @@
 
 <script>
 let stops = { south: [], north: [] };
+const STORAGE_KEY = 'scp_spoke_stops_v1';
+
+function saveToStorage() {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      stops,
+      savedAt: new Date().toISOString(),
+      fileName: document.getElementById('fileName').textContent
+    }));
+  } catch (e) {
+    console.error('Could not save to local storage', e);
+  }
+}
+
+function loadFromStorage() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return false;
+    const data = JSON.parse(raw);
+    stops = data.stops || { south: [], north: [] };
+    const when = data.savedAt ? new Date(data.savedAt).toLocaleString('en-AU', { weekday: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+    document.getElementById('fileName').textContent = data.fileName ? `${data.fileName} — loaded ${when}` : `Loaded ${when}`;
+    renderCards('south');
+    renderCards('north');
+    updateCounts();
+    return true;
+  } catch (e) {
+    console.error('Could not load from local storage', e);
+    return false;
+  }
+}
+
+function clearStorage() {
+  localStorage.removeItem(STORAGE_KEY);
+  stops = { south: [], north: [] };
+  document.getElementById('fileName').textContent = 'No file loaded yet';
+  renderCards('south');
+  renderCards('north');
+  updateCounts();
+  showStatus('Cleared saved data');
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  const loaded = loadFromStorage();
+  if (loaded) showStatus('Restored last saved export');
+});
 
 function switchTab(region) {
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
@@ -280,6 +327,7 @@ function processRows(rows) {
   renderCards('south');
   renderCards('north');
   updateCounts();
+  saveToStorage();
   showStatus(`Loaded: ${stops.south.length} SOUTH, ${stops.north.length} NORTH`);
 }
 
@@ -326,11 +374,13 @@ function escapeHtml(str) {
 
 function updateField(region, index, field, value) {
   stops[region][index][field] = value;
+  saveToStorage();
 }
 
 function toggleExclude(region, index) {
   stops[region][index].excluded = !stops[region][index].excluded;
   renderCards(region);
+  saveToStorage();
 }
 
 function moveStop(region, index, direction) {
@@ -339,6 +389,7 @@ function moveStop(region, index, direction) {
   if (newIndex < 0 || newIndex >= list.length) return;
   [list[index], list[newIndex]] = [list[newIndex], list[index]];
   renderCards(region);
+  saveToStorage();
 }
 
 function activeStops(region) {
