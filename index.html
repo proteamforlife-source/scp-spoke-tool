@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SCP Spoke Manifest Builder</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<style>
+  :root {
+    --green: #2f5d3a;
+    --green-dark: #1e3d26;
+    --bg: #f7f7f5;
+    --card: #ffffff;
+    --border: #d8d8d3;
+    --text: #1c1c1a;
+    --muted: #6b6b66;
+    --north: #b45309;
+    --south: #2f5d3a;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    padding-bottom: 60px;
+  }
+  header {
+    background: var(--green-dark);
+    color: white;
+    padding: 18px 16px;
+  }
+  header h1 { margin: 0; font-size: 18px; font-weight: 600; }
+  header p { margin: 4px 0 0; font-size: 13px; opacity: 0.85; }
+
+  .upload-zone {
+    margin: 16px;
+    padding: 20px;
+    border: 2px dashed var(--border);
+    border-radius: 10px;
+    background: var(--card);
+    text-align: center;
+  }
+  .upload-zone input { display: none; }
+  .upload-label {
+    display: inline-block;
+    background: var(--green);
+    color: white;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  .file-name { font-size: 12px; color: var(--muted); margin-top: 8px; }
+
+  .tabs {
+    display: flex;
+    margin: 0 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .tab {
+    flex: 1;
+    text-align: center;
+    padding: 10px 0;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--muted);
+    border-bottom: 3px solid transparent;
+    cursor: pointer;
+  }
+  .tab.active.south { color: var(--south); border-color: var(--south); }
+  .tab.active.north { color: var(--north); border-color: var(--north); }
+  .tab .count { font-weight: 400; color: var(--muted); }
+
+  .region-panel { display: none; padding: 0 16px; }
+  .region-panel.active { display: block; }
+
+  .actions-row {
+    display: flex;
+    gap: 8px;
+    margin: 14px 0;
+  }
+  .btn {
+    flex: 1;
+    padding: 12px 8px;
+    border-radius: 8px;
+    border: none;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    color: white;
+  }
+  .btn.address { background: var(--south); }
+  .btn.notes { background: #555; }
+  .region-panel[data-region="north"] .btn.address { background: var(--north); }
+
+  .stop-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin-bottom: 10px;
+  }
+  .stop-card.excluded { opacity: 0.45; }
+  .stop-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 6px;
+  }
+  .stop-num {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--muted);
+  }
+  .stop-controls { display: flex; gap: 6px; }
+  .stop-controls button {
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 12px;
+    padding: 3px 7px;
+    cursor: pointer;
+    color: var(--muted);
+  }
+  label.field-label {
+    display: block;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--muted);
+    margin-top: 8px;
+  }
+  input.field, textarea.field {
+    width: 100%;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 7px 8px;
+    font-size: 14px;
+    font-family: inherit;
+    margin-top: 2px;
+    background: #fcfcfb;
+  }
+  textarea.field { resize: vertical; min-height: 36px; }
+
+  .empty-state {
+    text-align: center;
+    color: var(--muted);
+    font-size: 14px;
+    padding: 40px 20px;
+  }
+  .status {
+    position: fixed;
+    bottom: 16px;
+    left: 16px;
+    right: 16px;
+    background: var(--green-dark);
+    color: white;
+    padding: 10px 14px;
+    border-radius: 8px;
+    font-size: 13px;
+    text-align: center;
+    display: none;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>SCP Spoke Manifest Builder</h1>
+  <p>Shopify export → SOUTH/NORTH split → Spoke-ready PDFs</p>
+</header>
+
+<div class="upload-zone">
+  <label class="upload-label" for="csvInput">Upload Shopify CSV export</label>
+  <input type="file" id="csvInput" accept=".csv">
+  <div class="file-name" id="fileName">No file loaded yet</div>
+</div>
+
+<div class="tabs">
+  <div class="tab south active" data-region="south" onclick="switchTab('south')">SOUTH <span class="count" id="southCount">(0)</span></div>
+  <div class="tab north" data-region="north" onclick="switchTab('north')">NORTH <span class="count" id="northCount">(0)</span></div>
+</div>
+
+<div class="region-panel active" data-region="south" id="panel-south">
+  <div class="actions-row">
+    <button class="btn address" onclick="generateAddressPdf('south')">Spoke Import PDF</button>
+    <button class="btn notes" onclick="generateNotesPdf('south')">Notes Reference PDF</button>
+  </div>
+  <div id="cards-south"><div class="empty-state">Upload a CSV to see SOUTH stops.</div></div>
+</div>
+
+<div class="region-panel" data-region="north" id="panel-north">
+  <div class="actions-row">
+    <button class="btn address" onclick="generateAddressPdf('north')">Spoke Import PDF</button>
+    <button class="btn notes" onclick="generateNotesPdf('north')">Notes Reference PDF</button>
+  </div>
+  <div id="cards-north"><div class="empty-state">Upload a CSV to see NORTH stops.</div></div>
+</div>
+
+<div class="status" id="status"></div>
+
+<script>
+let stops = { south: [], north: [] };
+
+function switchTab(region) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.querySelector(`.tab.${region}`).classList.add('active');
+  document.querySelectorAll('.region-panel').forEach(p => p.classList.remove('active'));
+  document.getElementById(`panel-${region}`).classList.add('active');
+}
+
+function showStatus(msg) {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.style.display = 'block';
+  setTimeout(() => el.style.display = 'none', 3000);
+}
+
+document.getElementById('csvInput').addEventListener('change', function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  document.getElementById('fileName').textContent = file.name;
+
+  Papa.parse(file, {
+    header: true,
+    skipEmptyLines: true,
+    complete: function(results) {
+      processRows(results.data);
+    },
+    error: function(err) {
+      showStatus('CSV parse error — check file format');
+    }
+  });
+});
+
+function firstNonEmpty(row, keys) {
+  for (const k of keys) {
+    if (row[k] && String(row[k]).trim()) return String(row[k]).trim();
+  }
+  return '';
+}
+
+function processRows(rows) {
+  const orders = {};
+
+  rows.forEach(row => {
+    const orderId = firstNonEmpty(row, ['Name', 'Order', 'Order Number']);
+    if (!orderId) return;
+
+    if (!orders[orderId]) {
+      const addr1 = firstNonEmpty(row, ['Shipping Address1', 'Shipping Address']);
+      const addr2 = firstNonEmpty(row, ['Shipping Address2']);
+      const city = firstNonEmpty(row, ['Shipping City']);
+      const zip = firstNonEmpty(row, ['Shipping Zip', 'Shipping Postal Code']);
+      const province = firstNonEmpty(row, ['Shipping Province', 'Shipping Province Name']);
+      const name = firstNonEmpty(row, ['Shipping Name', 'Billing Name']);
+      const phone = firstNonEmpty(row, ['Shipping Phone', 'Phone']);
+      const notes = firstNonEmpty(row, ['Notes', 'Note']);
+
+      const fullAddress = [addr1, addr2, city, province, zip].filter(Boolean).join(', ');
+
+      orders[orderId] = {
+        orderId,
+        name,
+        phone,
+        notes,
+        address: fullAddress,
+        zip,
+        excluded: false
+      };
+    }
+  });
+
+  const list = Object.values(orders);
+  stops.south = list.filter(o => o.zip && o.zip.trim().startsWith('2'));
+  stops.north = list.filter(o => o.zip && o.zip.trim().startsWith('4'));
+
+  renderCards('south');
+  renderCards('north');
+  updateCounts();
+  showStatus(`Loaded: ${stops.south.length} SOUTH, ${stops.north.length} NORTH`);
+}
+
+function updateCounts() {
+  document.getElementById('southCount').textContent = `(${stops.south.length})`;
+  document.getElementById('northCount').textContent = `(${stops.north.length})`;
+}
+
+function renderCards(region) {
+  const container = document.getElementById(`cards-${region}`);
+  const list = stops[region];
+
+  if (!list.length) {
+    container.innerHTML = `<div class="empty-state">No ${region.toUpperCase()} stops in this export.</div>`;
+    return;
+  }
+
+  container.innerHTML = list.map((stop, i) => `
+    <div class="stop-card ${stop.excluded ? 'excluded' : ''}" data-index="${i}">
+      <div class="stop-head">
+        <span class="stop-num">STOP ${i + 1} · ${stop.orderId}</span>
+        <div class="stop-controls">
+          <button onclick="moveStop('${region}', ${i}, -1)">↑</button>
+          <button onclick="moveStop('${region}', ${i}, 1)">↓</button>
+          <button onclick="toggleExclude('${region}', ${i})">${stop.excluded ? 'Include' : 'Exclude'}</button>
+        </div>
+      </div>
+      <label class="field-label">Name</label>
+      <input class="field" value="${escapeHtml(stop.name)}" onchange="updateField('${region}', ${i}, 'name', this.value)">
+      <label class="field-label">Address</label>
+      <textarea class="field" onchange="updateField('${region}', ${i}, 'address', this.value)">${escapeHtml(stop.address)}</textarea>
+      <label class="field-label">Phone</label>
+      <input class="field" value="${escapeHtml(stop.phone)}" onchange="updateField('${region}', ${i}, 'phone', this.value)">
+      <label class="field-label">Notes</label>
+      <textarea class="field" onchange="updateField('${region}', ${i}, 'notes', this.value)">${escapeHtml(stop.notes)}</textarea>
+    </div>
+  `).join('');
+}
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function updateField(region, index, field, value) {
+  stops[region][index][field] = value;
+}
+
+function toggleExclude(region, index) {
+  stops[region][index].excluded = !stops[region][index].excluded;
+  renderCards(region);
+}
+
+function moveStop(region, index, direction) {
+  const list = stops[region];
+  const newIndex = index + direction;
+  if (newIndex < 0 || newIndex >= list.length) return;
+  [list[index], list[newIndex]] = [list[newIndex], list[index]];
+  renderCards(region);
+}
+
+function activeStops(region) {
+  return stops[region].filter(s => !s.excluded);
+}
+
+function generateAddressPdf(region) {
+  const list = activeStops(region);
+  if (!list.length) { showStatus('No stops to export'); return; }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  const marginX = 40;
+  let y = 50;
+
+  doc.setFontSize(16);
+  doc.text(`SCP ${region.toUpperCase()} — Spoke Import`, marginX, y);
+  y += 30;
+
+  list.forEach((stop, i) => {
+    if (y > 760) { doc.addPage(); y = 50; }
+    doc.setFontSize(11);
+    doc.setFont(undefined, 'bold');
+    doc.text(`Stop ${i + 1}`, marginX, y);
+    y += 16;
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(13);
+    const lines = doc.splitTextToSize(stop.address, 500);
+    doc.text(lines, marginX, y);
+    y += lines.length * 16 + 20;
+  });
+
+  doc.save(`SCP_${region.toUpperCase()}_SpokeImport.pdf`);
+  showStatus(`Generated Spoke Import PDF — ${list.length} stops`);
+}
+
+function generateNotesPdf(region) {
+  const list = activeStops(region);
+  if (!list.length) { showStatus('No stops to export'); return; }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  const marginX = 40;
+  let y = 50;
+
+  doc.setFontSize(16);
+  doc.text(`SCP ${region.toUpperCase()} — Notes Reference`, marginX, y);
+  y += 30;
+
+  list.forEach((stop, i) => {
+    if (y > 760) { doc.addPage(); y = 50; }
+    doc.setFontSize(11);
+    doc.setFont(undefined, 'bold');
+    doc.text(`Stop ${i + 1} — ${stop.name || '(no name)'}`, marginX, y);
+    y += 16;
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(11);
+    const noteText = stop.notes ? stop.notes : '(no notes)';
+    const lines = doc.splitTextToSize(noteText, 500);
+    doc.text(lines, marginX, y);
+    y += lines.length * 14 + 18;
+  });
+
+  doc.save(`SCP_${region.toUpperCase()}_NotesReference.pdf`);
+  showStatus(`Generated Notes Reference PDF — ${list.length} stops`);
+}
+</script>
+
+</body>
+</html>
